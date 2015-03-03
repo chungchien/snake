@@ -3,4 +3,4 @@
 #define MINOR_VERSION @SNAKE_MINOR_VERSION@
 #define PATCH_VERSION @SNAKE_PATCH_VERSION@
 
-#cmakedefine HAVE_GETOPT  /* 測試是否有getopt函數 */
+#cmakedefine HAVE_GETOPT_LONG  /* 測試是否有getopt_long函數 */

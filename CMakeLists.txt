@@ -15,7 +15,7 @@ project(SNAKE)
 
 set(SNAKE_MAJOR_VERSION 0)
 set(SNAKE_MINOR_VERSION 0)
-set(SNAKE_PATCH_VERSION 0)
+set(SNAKE_PATCH_VERSION 1)
 
 if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Debug CACHE STRING
@@ -33,7 +33,13 @@ set(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O2 -Wall")
 set(PROJECT_NAME snake)
 
 include(CheckFunctionExists)
-check_function_exists(getopt HAVE_GETOPT)
+check_function_exists(getopt_long HAVE_GETOPT_LONG)
+
+# 檢查是否存在curses或是ncurses庫
+include(FindCurses)
+if (NOT CURSES_FOUND)
+  message(FATAL_ERROR "need curses or ncurses")
+endif (NOT CURSES_FOUND)
 
 configure_file(config.h.in "${PROJECT_BINARY_DIR}/include/config.h")
 include_directories("${PROJECT_BINARY_DIR}/include")
