@@ -12,7 +12,13 @@
 #include "food.h"
 #include "wall.h"
 
-static int game_is_running;
+enum GAME_STATU {
+  GAME_STOPED  = 0,
+  GMAE_RUNNING = 1,
+  GAME_PAUSED  = 2
+};
+
+static int game_status;
 static struct Snake *snake = NULL;
 static struct Food *food = NULL;
 static struct Wall *wall = NULL;
@@ -22,6 +28,8 @@ static void init_my_colors();  /* 初始化自定義的顏色 */
 static void show_options();    /* 顯示操作說明 */
 static void new_game();        /* 結束當前游戲開始新游戲 */
 static void end_game();        /* 結束游戲 */
+static void pause_game();      /* 暫停游戲 */
+static void resum_game();      /* 繼續游戲 */
 static void redraw();          /* 重繪界面 */
 static void game_over();       /* 顯示 GAME OVER 信息並結束該局游戲 */
 static void advance();         /* 更新動畫畫面 */
@@ -41,26 +49,26 @@ void run_game()
 
   show_options();  /* 顯示操作說明 */
 
-  new_game();                                  /* 開始新游戲 */
+  new_game(); /* 開始新游戲 */
 
   key = getch();
   while (key != ERR && key != 'q') {
     /* 根據按鍵設置蛇的移動方向 */
     switch (key) {
       case KEY_RIGHT:
-        if (game_is_running) snake_face_right(snake);
+        if (game_status) snake_face_right(snake);
         break;
       case KEY_LEFT:
-        if (game_is_running) snake_face_left(snake);
+        if (game_status) snake_face_left(snake);
         break;
       case KEY_UP:
-        if (game_is_running) snake_face_up(snake);
+        if (game_status) snake_face_up(snake);
         break;
       case KEY_DOWN:
-        if (game_is_running) snake_face_down(snake);
+        if (game_status) snake_face_down(snake);
         break;
       case ' ':
-        if (game_is_running) snake_pause(snake);
+        if (game_status) snake_pause(snake);
         break;
       case 'n': new_game(); break;
       case 'h': show_options(); break;
@@ -102,6 +110,8 @@ static void show_options()
   int i, n, width, height;
   WINDOW *win;
 
+  pause_game();
+
   n = sizeof(options) / sizeof(options[0]);
   width = 50;
   height = n + 7;
@@ -134,7 +144,7 @@ static void show_options()
   wgetch(win);
   delwin(win);
   touchwin(stdscr);
-  refresh();
+  resum_game();
 }
 
 static void init_screen()
@@ -151,6 +161,9 @@ static void init_screen()
 
 static void new_game()
 {
+  if (game_status)
+    end_game();  /* 如果游戲正在進行或是暫停狀態，先結束 */
+
   wall = wall_init(0, 0, LINES - 1, COLS - 1);  /* 初始化墻 */
   snake = snake_init(COLS / 2, LINES / 2);      /* 初始化蛇 */
   food = food_init();                           /* 初始化食物 */
@@ -167,12 +180,12 @@ static void new_game()
   /* 啟動定時器 */
   start_timer(10, DEFAULT_SNAKE_STEP_INTERVAL);
 
-  game_is_running = 1;
+  game_status = GMAE_RUNNING;
 }
 
 static void end_game()
 {
-  game_is_running = 0;
+  game_status = GMAE_STOPED;
 
   stop_timer();
   if (snake) {
@@ -186,6 +199,22 @@ static void end_game()
   if (wall) {
     wall_delete(wall);
     wall = NULL;
+  }
+}
+
+static void pause_game()
+{
+  if (game_status == GMAE_RUNNING) {
+    stop_timer();
+    game_status = GAME_PAUSED;
+  }
+}
+
+static void resum_game()
+{
+  if (game_status == GAME_PAUSED) {
+    start_timer(1, DEFAULT_SNAKE_STEP_INTERVAL);
+    game_status = GMAE_RUNNING;
   }
 }
 
