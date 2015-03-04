@@ -181,7 +181,4 @@ void snake_paint(const struct Snake *snake)
     mvaddch(p->pos.y, p->pos.x, '*');
     p = p->next;
   }
-
-  /* 將光標移動到蛇頭處 */
-  move(snake->head->pos.y, snake->head->pos.x);
 }

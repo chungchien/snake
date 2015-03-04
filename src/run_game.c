@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <curses.h>
+#include "constants.h"
 #include "point.h"
 #include "snake.h"
 #include "food.h"
@@ -18,6 +19,8 @@ static struct Wall *wall;
 static void game_over();
 static void generate_food(struct Food *food);
 static void advance(int signo);
+static void redraw();
+
 /* 在shot_after毫秒後起動定時器，間隔interval發送一個SIGALARM信號 */
 static void start_timer(int shot_after, int interval);
 /* 停止定時器 */
@@ -30,30 +33,31 @@ void run_game()
   /* struct Wall *wall; */
   int key;
 
+  /* 初始化curses环境 */
   initscr();
   crmode();
   keypad(stdscr, TRUE);
   noecho();
   clear();
 
+  /* 初始化墙 */
   wall = wall_init(0, 0, LINES - 1, COLS - 1);
-  wall_paint(wall);
 
+  /* 初始化蛇 */
+  snake = snake_init(COLS / 2, LINES / 2);
+
+  /* 初始化食物 */
   food = food_init();
   generate_food(food);
-  food_paint(food);
 
-  snake = snake_init(COLS / 2, LINES / 2);
-  snake_paint(snake);
-
-  refresh();
+  redraw();
 
   if (signal(SIGALRM, advance) == SIG_ERR) {
     mvprintw(5, 10, "signal error: %s", strerror(errno));
     endwin();
     return;
   }
-  start_timer(10, 300);
+  start_timer(10, DEFAULT_SNAKE_STEP_INTERVAL);
 
   key = getch();
   while (key != ERR && key != 'q') {
@@ -139,6 +143,19 @@ static void stop_timer()
 
 }
 
+static void redraw()
+{
+  erase();
+  wall_paint(wall);
+  snake_paint(snake);
+  food_paint(food);
+
+  /* 将光标放在食物所在位置 */
+  move(food_get_pos(food)->y, food_get_pos(food)->x);
+
+  refresh();
+}
+
 static void advance(int signo)
 {
   struct Point next_step;
@@ -153,9 +170,5 @@ static void advance(int signo)
     return;
   }  /* else do nothing */
 
-  erase();
-  wall_paint(wall);
-  food_paint(food);
-  snake_paint(snake);
-  refresh();
+  redraw();
 }
