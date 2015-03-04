@@ -172,7 +172,7 @@ struct Point snake_next_step(const struct Snake *snake)
 void snake_paint(const struct Snake *snake)
 {
   const chtype head_ch[] = {
-    'o', '<', '>', 'V', '^'
+    'x', '<', '>', 'V', '^'
   };
   const struct SnakeNode *p = snake->head;
 

@@ -12,29 +12,133 @@
 #include "food.h"
 #include "wall.h"
 
-static struct Snake *snake;
-static struct Food *food;
-static struct Wall *wall;
+static int game_is_running;
+static struct Snake *snake = NULL;
+static struct Food *food = NULL;
+static struct Wall *wall = NULL;
 
-static void game_over();
-static void generate_food(struct Food *food);
-static void advance(int signo);
-static void redraw();
-static void init_my_colors();
+static void init_screen();    /* 初始化屏幕顯示設置 */
+static void init_my_colors();  /* 初始化自定義的顏色 */
+static void show_options();    /* 顯示操作說明 */
+static void new_game();        /* 結束當前游戲開始新游戲 */
+static void end_game();        /* 結束游戲 */
+static void redraw();          /* 重繪界面 */
+static void game_over();       /* 顯示 GAME OVER 信息並結束該局游戲 */
+static void advance();         /* 更新動畫畫面 */
+static void generate_food();   /* 爲食物生成一個位置 */
+static void sig_alarm(int);    /* 處理 SIGALARM */
 
-/* 在shot_after毫秒後起動定時器，間隔interval發送一個SIGALARM信號 */
-static void start_timer(int shot_after, int interval);
+/* 在when_short毫秒後起動定時器，每隔interval發送一個SIGALARM信號 */
+static void start_timer(int when_shot, int interval);
 /* 停止定時器 */
 static void stop_timer();
 
 void run_game()
 {
-  /* struct Snake *snake; */
-  /* struct Food *food; */
-  /* struct Wall *wall; */
   int key;
 
-  /* 初始化curses环境 */
+  init_screen();  /* 初始化終端配置 */
+
+  show_options();  /* 顯示操作說明 */
+
+  new_game();                                  /* 開始新游戲 */
+
+  key = getch();
+  while (key != ERR && key != 'q') {
+    /* 根據按鍵設置蛇的移動方向 */
+    switch (key) {
+      case KEY_RIGHT:
+        if (game_is_running) snake_face_right(snake);
+        break;
+      case KEY_LEFT:
+        if (game_is_running) snake_face_left(snake);
+        break;
+      case KEY_UP:
+        if (game_is_running) snake_face_up(snake);
+        break;
+      case KEY_DOWN:
+        if (game_is_running) snake_face_down(snake);
+        break;
+      case ' ':
+        if (game_is_running) snake_pause(snake);
+        break;
+      case 'n': new_game(); break;
+      case 'h': show_options(); break;
+      default: break;
+    }
+
+    key = getch();
+  }
+
+  end_game();
+  endwin();
+}
+
+static void show_options()
+{
+  const char title[] = "OPERATING INSTRUCTION";
+  const char prompt[] = "(Press any key back to the game)";
+  const char *keys[] = {
+    "left arrow",
+    "right arrow",
+    "up arrow",
+    "down arrow",
+    "space",
+    "n",
+    "q",
+    "h"
+  };
+  const char *options[] = {
+    "move left",
+    "move right",
+    "move up",
+    "move down",
+    "pause",
+    "new game",
+    "exit game",
+    "show operating instruction"
+  };
+
+  int i, n, width, height;
+  WINDOW *win;
+
+  n = sizeof(options) / sizeof(options[0]);
+  width = 50;
+  height = n + 7;
+
+  win = newwin(height, width, 3, 10);
+  box(win, ACS_VLINE, ACS_HLINE);
+
+  wattron(win, A_BOLD);
+  wmove(win, 1, (width - sizeof(title)) / 2);
+  wprintw(win, title);
+  wattroff(win, A_BOLD);
+
+  wmove(win, 3, 3);
+  wprintw(win, prompt);
+
+  wattron(win, A_BOLD | A_UNDERLINE);
+  for (i = 0; i < n; i++) {
+    wmove(win, i + 5, 3);
+    wprintw(win, keys[i]);
+  }
+  wattroff(win, A_BOLD | A_UNDERLINE);
+
+  for (i = 0; i < n; i++) {
+    wmove(win, i + 5, 18);
+    wprintw(win, options[i]);
+  }
+
+  wrefresh(win);
+
+  wgetch(win);
+  delwin(win);
+  touchwin(stdscr);
+  refresh();
+}
+
+static void init_screen()
+{
   initscr();
   if (has_colors() && start_color() == OK) {
     init_my_colors();
@@ -43,51 +147,54 @@ void run_game()
   keypad(stdscr, TRUE);
   noecho();
   clear();
+}
 
-  /* 初始化墙 */
-  wall = wall_init(0, 0, LINES - 1, COLS - 1);
+static void new_game()
+{
+  wall = wall_init(0, 0, LINES - 1, COLS - 1);  /* 初始化墻 */
+  snake = snake_init(COLS / 2, LINES / 2);      /* 初始化蛇 */
+  food = food_init();                           /* 初始化食物 */
+  generate_food();
 
-  /* 初始化蛇 */
-  snake = snake_init(COLS / 2, LINES / 2);
+  redraw();  /* 繪制游戲畫面 */
 
-  /* 初始化食物 */
-  food = food_init();
-  generate_food(food);
-
-  redraw();
-
-  if (signal(SIGALRM, advance) == SIG_ERR) {
+  /* 安裝定時器處理函數 */
+  if (signal(SIGALRM, sig_alarm) == SIG_ERR) {
     mvprintw(5, 10, "signal error: %s", strerror(errno));
     endwin();
-    return;
+    exit(EXIT_FAILURE);
   }
+  /* 啟動定時器 */
   start_timer(10, DEFAULT_SNAKE_STEP_INTERVAL);
 
-  key = getch();
-  while (key != ERR && key != 'q') {
-    /* 根據按鍵設置蛇的移動方向 */
-    switch (key) {
-      case KEY_RIGHT: snake_face_right(snake); break;
-      case KEY_LEFT: snake_face_left(snake); break;
-      case KEY_UP: snake_face_up(snake); break;
-      case KEY_DOWN: snake_face_down(snake); break;
-      case ' ':  snake_pause(snake); break;
-      default: break;
-    }
+  game_is_running = 1;
+}
 
-    key = getch();
+static void end_game()
+{
+  game_is_running = 0;
+
+  stop_timer();
+  if (snake) {
+    snake_delete(snake);
+    snake = NULL;
   }
-
-  snake_delete(snake);
-  food_delete(food);
-  endwin();
+  if (food) {
+    food_delete(food);
+    food = NULL;
+  }
+  if (wall) {
+    wall_delete(wall);
+    wall = NULL;
+  }
 }
 
 static void game_over()
 {
   WINDOW *win;
 
-  stop_timer();                                   /* 停止定時器 */
+  //stop_timer();                                   /* 停止定時器 */
+  end_game();
 
   win = newwin(5, 30, (LINES - 5) / 2, (COLS - 30) / 2);
 
@@ -102,7 +209,7 @@ static void game_over()
   wrefresh(stdscr);
 }
 
-static void generate_food(struct Food *food)
+static void generate_food()
 {
   struct Point pos;
   chtype ch;
@@ -160,21 +267,22 @@ static void redraw()
   refresh();
 }
 
-static void advance(int signo)
+static void advance()
 {
   struct Point next_step;
 
   next_step = snake_next_step(snake);
-  if (point_equal(next_step, *food_get_pos(food))) {  /* 如果下一步是食物 */
-    snake_eat(snake);
-    generate_food(food);
-  } else if (wall_is_out_range(wall, &next_step) ||  /* 如果下一步撞到墻 */
-             !snake_advance(snake)) {               /* 或是咬到自己 */
-    game_over();                                     /* 結果游戲 */
+  if (point_equal(next_step, *food_get_pos(food))) {
+    /* 如果下一步是食物 */
+    snake_eat(snake);  /* 蛇進食 */
+    generate_food();   /* 生成新的食物 */
+  } else if (wall_is_out_range(wall, &next_step) || !snake_advance(snake)) {
+    /* 如果下一步蛇會撞到墻或前進之後咬到自己 */
+    game_over();    /* 結束該局游戲 */
     return;
   }  /* else do nothing */
 
-  redraw();
+  redraw();  /* 重繪畫面 */
 }
 
 static void init_my_colors()
@@ -185,4 +293,9 @@ static void init_my_colors()
   init_pair(SNAKE_BODY_COLOR, COLOR_CYAN, COLOR_WHITE);
   init_pair(ERROR_COLOR, COLOR_RED, COLOR_WHITE);
   init_pair(ERROR_COLOR, COLOR_GREEN, COLOR_WHITE);
+}
+
+static void sig_alarm(int signo)
+{
+  advance();
 }
