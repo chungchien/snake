@@ -1,28 +1,33 @@
 #include "config.h"
+#include <unistd.h>
+#include <sys/time.h>
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+#include <signal.h>
 #include <curses.h>
 #include "point.h"
 #include "snake.h"
 #include "food.h"
 #include "wall.h"
 
-struct Wall {
-  int top;
-  int left;
-  int bottom;
-  int right;
-};
-
-static int is_on_food(struct Point point, const struct Food *food);
+static struct Snake *snake;
+static struct Food *food;
+static struct Wall *wall;
 
 static void game_over();
 static void generate_food(struct Food *food);
+static void advance(int signo);
+/* 在shot_after毫秒後起動定時器，間隔interval發送一個SIGALARM信號 */
+static void start_timer(int shot_after, int interval);
+/* 停止定時器 */
+static void stop_timer();
 
 void run_game()
 {
-  struct Snake *snake;
-  struct Food *food;
-  struct Wall *wall;
+  /* struct Snake *snake; */
+  /* struct Food *food; */
+  /* struct Wall *wall; */
   int key;
 
   initscr();
@@ -34,7 +39,6 @@ void run_game()
   wall = wall_init(0, 0, LINES - 1, COLS - 1);
   wall_paint(wall);
 
-
   food = food_init();
   generate_food(food);
   food_paint(food);
@@ -44,10 +48,15 @@ void run_game()
 
   refresh();
 
+  if (signal(SIGALRM, advance) == SIG_ERR) {
+    mvprintw(5, 10, "signal error: %s", strerror(errno));
+    endwin();
+    return;
+  }
+  start_timer(10, 300);
+
   key = getch();
   while (key != ERR && key != 'q') {
-    struct Point next_step;
-
     /* 根據按鍵設置蛇的移動方向 */
     switch (key) {
       case KEY_RIGHT: snake_face_right(snake); break;
@@ -58,21 +67,6 @@ void run_game()
       default: break;
     }
 
-    next_step = snake_next_step(snake);
-    if (is_on_food(next_step, food)) {  /* 如果下一步是食物 */
-      snake_eat(snake);
-      generate_food(food);
-    } else if (wall_is_out_range(wall, &next_step) ||  /* 如果下一步撞到墻 */
-               !snake_advance(snake)) {               /* 或是咬到自己 */
-      game_over();                                     /* 結果游戲 */
-      break;
-    }  /* else do nothing */
-
-    erase();
-    wall_paint(wall);
-    food_paint(food);
-    snake_paint(snake);
-    refresh();
     key = getch();
   }
 
@@ -83,11 +77,19 @@ void run_game()
 
 static void game_over()
 {
-  WINDOW *win = newwin(5, 40, (LINES - 5) / 2, (COLS - 40) / 2);
-  wprintw(win, "GAME OVER!");
+  WINDOW *win;
+
+  stop_timer();                                   /* 停止定時器 */
+
+  win = newwin(5, 30, (LINES - 5) / 2, (COLS - 30) / 2);
+
+  box(win, ACS_VLINE, ACS_HLINE);
+  wmove(win, 2, 9);
+  wprintw(win, "GAME OVER!!!");
   wrefresh(win);
   wgetch(win);
   delwin(win);
+
   touchwin(stdscr);
   wrefresh(stdscr);
 }
@@ -106,7 +108,54 @@ static void generate_food(struct Food *food)
   food_set_pos(food, pos);
 }
 
-static int is_on_food(struct Point point, const struct Food *food)
+static void start_timer(int shot_after, int interval)
 {
-  return point_equal(point, *food_get_pos(food));
+  struct itimerval itimerval;
+
+  itimerval.it_value.tv_sec = shot_after / 1000;
+  itimerval.it_value.tv_usec = shot_after % 1000 * 1000;
+  itimerval.it_interval.tv_sec = interval / 1000;
+  itimerval.it_interval.tv_usec = interval % 1000 * 1000;
+  if (setitimer(ITIMER_REAL, &itimerval, NULL) < 0) {
+    mvprintw(5, 10, "setitimer error: %s", strerror(errno));
+    endwin();
+    return;
+  }
+}
+
+static void stop_timer()
+{
+  struct itimerval itimerval;
+
+  itimerval.it_value.tv_sec = 0;
+  itimerval.it_value.tv_usec = 0;
+  itimerval.it_interval.tv_sec = 0;
+  itimerval.it_interval.tv_usec = 0;
+  if (setitimer(ITIMER_REAL, &itimerval, NULL) < 0) {
+    mvprintw(5, 10, "setitimer error: %s", strerror(errno));
+    endwin();
+    return;
+  }
+
+}
+
+static void advance(int signo)
+{
+  struct Point next_step;
+
+  next_step = snake_next_step(snake);
+  if (point_equal(next_step, *food_get_pos(food))) {  /* 如果下一步是食物 */
+    snake_eat(snake);
+    generate_food(food);
+  } else if (wall_is_out_range(wall, &next_step) ||  /* 如果下一步撞到墻 */
+             !snake_advance(snake)) {               /* 或是咬到自己 */
+    game_over();                                     /* 結果游戲 */
+    return;
+  }  /* else do nothing */
+
+  erase();
+  wall_paint(wall);
+  food_paint(food);
+  snake_paint(snake);
+  refresh();
 }
