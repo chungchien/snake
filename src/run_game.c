@@ -20,6 +20,7 @@ static void game_over();
 static void generate_food(struct Food *food);
 static void advance(int signo);
 static void redraw();
+static void init_my_colors();
 
 /* 在shot_after毫秒後起動定時器，間隔interval發送一個SIGALARM信號 */
 static void start_timer(int shot_after, int interval);
@@ -35,6 +36,9 @@ void run_game()
 
   /* 初始化curses环境 */
   initscr();
+  if (has_colors() && start_color() == OK) {
+    init_my_colors();
+  }
   crmode();
   keypad(stdscr, TRUE);
   noecho();
@@ -171,4 +175,14 @@ static void advance(int signo)
   }  /* else do nothing */
 
   redraw();
+}
+
+static void init_my_colors()
+{
+  init_pair(WALL_COLOR, COLOR_GREEN, COLOR_GREEN);
+  init_pair(FOOD_COLOR, COLOR_YELLOW, COLOR_BLACK);
+  init_pair(SNAKE_HEAD_COLOR, COLOR_RED, COLOR_BLACK);
+  init_pair(SNAKE_BODY_COLOR, COLOR_CYAN, COLOR_WHITE);
+  init_pair(ERROR_COLOR, COLOR_RED, COLOR_WHITE);
+  init_pair(ERROR_COLOR, COLOR_GREEN, COLOR_WHITE);
 }

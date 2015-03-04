@@ -4,4 +4,13 @@
 /* 默认的蛇每步的时间间隔；单位是毫秒 */
 #define DEFAULT_SNAKE_STEP_INTERVAL 300
 
+enum Colors {
+  WALL_COLOR = 1,
+  FOOD_COLOR = 2,
+  SNAKE_HEAD_COLOR = 3,
+  SNAKE_BODY_COLOR = 4,
+  ERROR_COLOR = 5,
+  PROMPT_COLOR = 6
+};
+
 #endif // SNAKE_SRC_CONSTANTS_H_

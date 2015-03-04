@@ -2,6 +2,7 @@
 #include <curses.h>
 #include <stdlib.h>
 #include <assert.h>
+#include "constants.h"
 #include "snake.h"
 
 enum SnakeMoveDirection {
@@ -170,15 +171,18 @@ struct Point snake_next_step(const struct Snake *snake)
 
 void snake_paint(const struct Snake *snake)
 {
+  const chtype head_ch[] = {
+    'o', '<', '>', 'V', '^'
+  };
   const struct SnakeNode *p = snake->head;
 
   /* 𤲯頭 */
-  mvaddch(p->pos.y, p->pos.x, 'O');
+  mvaddch(p->pos.y, p->pos.x, head_ch[snake->direction]);
   p = p->next;
 
   /* 𤲯身子 */
   while (p) {
-    mvaddch(p->pos.y, p->pos.x, '*');
+    mvaddch(p->pos.y, p->pos.x, 'o');
     p = p->next;
   }
 }
