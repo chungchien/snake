@@ -14,7 +14,7 @@
 
 enum GAME_STATU {
   GAME_STOPED  = 0,
-  GMAE_RUNNING = 1,
+  GAME_RUNNING = 1,
   GAME_PAUSED  = 2
 };
 
@@ -180,12 +180,12 @@ static void new_game()
   /* 啟動定時器 */
   start_timer(10, DEFAULT_SNAKE_STEP_INTERVAL);
 
-  game_status = GMAE_RUNNING;
+  game_status = GAME_RUNNING;
 }
 
 static void end_game()
 {
-  game_status = GMAE_STOPED;
+  game_status = GAME_STOPED;
 
   stop_timer();
   if (snake) {
@@ -204,7 +204,7 @@ static void end_game()
 
 static void pause_game()
 {
-  if (game_status == GMAE_RUNNING) {
+  if (game_status == GAME_RUNNING) {
     stop_timer();
     game_status = GAME_PAUSED;
   }
@@ -214,7 +214,7 @@ static void resum_game()
 {
   if (game_status == GAME_PAUSED) {
     start_timer(1, DEFAULT_SNAKE_STEP_INTERVAL);
-    game_status = GMAE_RUNNING;
+    game_status = GAME_RUNNING;
   }
 }
 
